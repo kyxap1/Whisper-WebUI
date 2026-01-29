@@ -24,3 +24,4 @@ services:
   # Override whisper-webui to not expose port directly
   whisper-webui:
     ports: !reset []
+    restart: unless-stopped
