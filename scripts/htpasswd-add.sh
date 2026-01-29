@@ -1,8 +1,9 @@
 #!/bin/sh
 set -e
 
-# Path to the .htpasswd file (relative to script location)
-HTPASSWD_FILE="$(cd "$(dirname "$0")/../nginx" && pwd)/.htpasswd"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+NGINX_DIR="$(cd "$SCRIPT_DIR/../nginx" && pwd)"
+HTPASSWD_FILE="$NGINX_DIR/.htpasswd"
 
 usage() {
     echo "Usage: $0 <username> [password]"
@@ -33,25 +34,28 @@ if ! command -v docker >/dev/null 2>&1; then
     exit 1
 fi
 
-# Ensure the file exists so we can mount it
+# Set -c flag if file needs to be created or is empty
+CREATE_FLAG=""
+
 if [ ! -f "$HTPASSWD_FILE" ]; then
     touch "$HTPASSWD_FILE"
+    CREATE_FLAG="-c"
     echo "Created $HTPASSWD_FILE"
+elif [ ! -s "$HTPASSWD_FILE" ]; then
+    CREATE_FLAG="-c"
 fi
 
-echo "Using Docker to run htpasswd..."
-
-# Add/update user
+# Mount directory instead of file (htpasswd needs to create temp files)
 if [ -n "$PASSWORD" ]; then
     docker run --rm \
-        -v "$HTPASSWD_FILE:/auth/.htpasswd" \
+        -v "$NGINX_DIR:/auth" \
         httpd:alpine \
-        htpasswd -bB /auth/.htpasswd "$USERNAME" "$PASSWORD"
+        htpasswd -bB ${CREATE_FLAG} /auth/.htpasswd "$USERNAME" "$PASSWORD"
 else
     docker run --rm -it \
-        -v "$HTPASSWD_FILE:/auth/.htpasswd" \
+        -v "$NGINX_DIR:/auth" \
         httpd:alpine \
-        htpasswd -B /auth/.htpasswd "$USERNAME"
+        htpasswd -B ${CREATE_FLAG} /auth/.htpasswd "$USERNAME"
 fi
 
 echo ""
