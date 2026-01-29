@@ -34,29 +34,28 @@ if ! command -v docker >/dev/null 2>&1; then
     exit 1
 fi
 
-# Set -c flag if file needs to be created or is empty
-CREATE_FLAG=""
-
-if [ ! -f "$HTPASSWD_FILE" ]; then
-    touch "$HTPASSWD_FILE"
-    CREATE_FLAG="-c"
-    echo "Created $HTPASSWD_FILE"
-elif [ ! -s "$HTPASSWD_FILE" ]; then
-    CREATE_FLAG="-c"
-fi
-
-# Mount directory instead of file (htpasswd needs to create temp files)
+# Generate hash and write to file (no mounting needed)
 if [ -n "$PASSWORD" ]; then
-    docker run --rm \
-        -v "$NGINX_DIR:/auth" \
-        httpd:alpine \
-        htpasswd -bB ${CREATE_FLAG} /auth/.htpasswd "$USERNAME" "$PASSWORD"
+    HASH=$(docker run --rm httpd:alpine htpasswd -nbB "$USERNAME" "$PASSWORD")
 else
-    docker run --rm -it \
-        -v "$NGINX_DIR:/auth" \
-        httpd:alpine \
-        htpasswd -B ${CREATE_FLAG} /auth/.htpasswd "$USERNAME"
+    echo "Enter password for $USERNAME:"
+    read -s PASSWORD
+    echo "Re-type password:"
+    read -s PASSWORD2
+    if [ "$PASSWORD" != "$PASSWORD2" ]; then
+        echo "Passwords don't match"
+        exit 1
+    fi
+    HASH=$(docker run --rm httpd:alpine htpasswd -nbB "$USERNAME" "$PASSWORD")
 fi
 
-echo ""
+# Remove existing entry for this user (if any)
+if [ -f "$HTPASSWD_FILE" ]; then
+    grep -v "^${USERNAME}:" "$HTPASSWD_FILE" > "$HTPASSWD_FILE.tmp" || true
+    mv "$HTPASSWD_FILE.tmp" "$HTPASSWD_FILE"
+fi
+
+# Append new entry
+echo "$HASH" >> "$HTPASSWD_FILE"
+
 echo "User '$USERNAME' added/updated in $HTPASSWD_FILE"
