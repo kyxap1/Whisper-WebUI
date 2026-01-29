@@ -60,7 +60,7 @@ if [ "$USE_LETSENCRYPT" = "true" ]; then
         ssl_certificate_key \$acme_certificate_key;"
 
     OCSP_STAPLING_CONFIG="ssl_stapling on;
-        ssl_stapling_verify on;"
+    ssl_stapling_verify on;"
 else
     echo "==> Using self-signed certificates"
     OCSP_STAPLING_CONFIG=""
