@@ -15,14 +15,22 @@ LETSENCRYPT_ENV="${LETSENCRYPT_ENV:-staging}"
 ACME_STAGING="https://acme-staging-v02.api.letsencrypt.org/directory"
 ACME_PRODUCTION="https://acme-v02.api.letsencrypt.org/directory"
 
-# Determine server name (DOMAIN takes precedence over IP)
+# Determine server name (DOMAIN > IP > auto-detect > localhost)
 if [ -n "$DOMAIN" ]; then
     SERVER_NAME="$DOMAIN"
 elif [ -n "$IP" ]; then
     SERVER_NAME="$IP"
 else
-    echo "ERROR: Either DOMAIN or IP must be set"
-    exit 1
+    # Try to auto-detect public IP
+    echo "==> Auto-detecting public IP..."
+    PUBLIC_IP=$(curl -sSL --connect-timeout 5 ip.kyxap.pro/csv 2>/dev/null | cut -d',' -f1)
+    if [ -n "$PUBLIC_IP" ] && echo "$PUBLIC_IP" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+        SERVER_NAME="$PUBLIC_IP"
+        echo "    Detected: $SERVER_NAME"
+    else
+        SERVER_NAME="localhost"
+        echo "    Failed to detect, using localhost"
+    fi
 fi
 
 # Determine ACME server
@@ -74,8 +82,11 @@ else
     if [ ! -f "$SELF_SIGNED_CERT" ] || [ "$CERT_CN" != "$SERVER_NAME" ]; then
         echo "==> Generating self-signed certificate for $SERVER_NAME..."
 
-        # Check if IP or domain
-        if echo "$SERVER_NAME" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+        # Build SAN (Subject Alternative Names)
+        if [ "$SERVER_NAME" = "localhost" ]; then
+            # localhost - include both DNS and IP
+            SAN="DNS:localhost,IP:127.0.0.1"
+        elif echo "$SERVER_NAME" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
             # IP address
             SAN="IP:${SERVER_NAME}"
         else
@@ -99,16 +110,66 @@ else
     OCSP_STAPLING_CONFIG="# OCSP Stapling disabled"
 fi
 
+# Authentication method configuration
+AUTH_METHOD="${AUTH_METHOD:-basic}"
+
+if [ "$AUTH_METHOD" = "cognito" ]; then
+    echo "==> Using Cognito (oauth2-proxy) authentication"
+    AUTH_CONFIG='# OAuth2 authentication via oauth2-proxy
+    location /oauth2/ {
+        proxy_pass http://oauth2-proxy:4180;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Scheme $scheme;
+        proxy_set_header X-Auth-Request-Redirect $request_uri;
+
+        # Buffer settings for large OAuth2 headers (JWT tokens)
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+        proxy_max_temp_file_size 0;
+    }
+
+    location = /oauth2/auth {
+        proxy_pass http://oauth2-proxy:4180;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Scheme $scheme;
+        proxy_set_header Content-Length "";
+        proxy_pass_request_body off;
+
+        # Buffer settings for large OAuth2 headers (JWT tokens)
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+        proxy_max_temp_file_size 0;
+    }'
+    
+    LOCATION_AUTH='auth_request /oauth2/auth;
+        error_page 401 = /oauth2/sign_in;
+        auth_request_set $user   $upstream_http_x_auth_request_user;
+        auth_request_set $email  $upstream_http_x_auth_request_email;
+        proxy_set_header X-User  $user;
+        proxy_set_header X-Email $email;'
+else
+    echo "==> Using Basic (htpasswd) authentication"
+    AUTH_CONFIG=''
+    LOCATION_AUTH='auth_basic "Restricted Access";
+        auth_basic_user_file /etc/nginx/.htpasswd;'
+fi
+
 # Export variables for envsubst
 export SERVER_NAME
 export ACME_SERVER
 export ACME_EMAIL
 export SSL_CERTIFICATE_CONFIG
 export OCSP_STAPLING_CONFIG
+export AUTH_CONFIG
+export LOCATION_AUTH
 
 # Generate nginx config from template
 echo "==> Generating nginx configuration..."
-envsubst '${SERVER_NAME} ${ACME_SERVER} ${ACME_EMAIL} ${SSL_CERTIFICATE_CONFIG} ${OCSP_STAPLING_CONFIG}' \
+envsubst '${SERVER_NAME} ${ACME_SERVER} ${ACME_EMAIL} ${SSL_CERTIFICATE_CONFIG} ${OCSP_STAPLING_CONFIG} ${AUTH_CONFIG} ${LOCATION_AUTH}' \
     < /etc/nginx/nginx.conf.template \
     > /etc/nginx/nginx.conf
 

@@ -1,0 +1,10 @@
+services:
+  whisper-webui:
+    image: hashicorp/http-echo:latest
+    command: ["-listen=:7860", "-text='Auth works!'"]
+    build: !reset null
+    entrypoint: !reset []
+    volumes: !reset []
+    deploy: !reset null
+    stdin_open: !reset null
+    tty: !reset null
