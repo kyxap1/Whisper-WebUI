@@ -40,6 +40,6 @@ services:
       - cognito
 
   whisper-webui:
-    ports:
+    ports: !reset
       - "127.0.0.1:7860:7860"
     restart: unless-stopped
