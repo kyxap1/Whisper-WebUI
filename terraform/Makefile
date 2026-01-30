@@ -6,6 +6,7 @@ ARGS   ?=
 
 init:
 	./scripts/init_backend.sh
+	terraform init
 
 plan:
 	terraform plan -var-file=$(TFVARS) $(ARGS)

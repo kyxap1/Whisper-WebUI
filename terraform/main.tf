@@ -9,10 +9,8 @@ terraform {
 }
 
 module "cognito" {
-  # Local development path
-  source = "/Users/kyxap/tmp/terraformita/terraform-aws-cognito"
-  # Future registry source:
-  # source = "terraformita/cognito/aws"
+  source  = "terraformita/cognito/aws"
+  version = "v1.1.0"
 
   region      = var.aws_region
   stage_name  = "ignore"
