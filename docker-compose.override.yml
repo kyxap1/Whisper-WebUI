@@ -18,8 +18,6 @@ services:
       - ./nginx/acme:/var/cache/nginx/acme
     env_file:
       - .env
-    depends_on:
-      - whisper-webui
     restart: unless-stopped
 
   oauth2-proxy:
@@ -41,14 +39,7 @@ services:
     profiles:
       - cognito
 
-  # Mock backend (only starts with 'mock' profile)
-  # Uses the same name to override the real one when the profile is active
   whisper-webui:
-    image: hashicorp/http-echo
-    command: ["-listen=:7860", "-text='Auth works!'"]
-    build: !reset null
-    entrypoint: !reset []
-    volumes: !reset []
-    deploy: !reset null
-    profiles:
-      - mock
+    ports:
+      - "127.0.0.1:7860:7860"
+    restart: unless-stopped
