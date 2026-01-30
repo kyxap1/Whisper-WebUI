@@ -241,7 +241,122 @@ ensure_secure_transport() {
   policy=$(jq -n \
     --arg bucket "$bucket" \
     --arg account "$ACCOUNT_ID" \
-    -f "$SCRIPT_DIR/templates/s3-bucket-policy.json.template")
+    '{
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "DenyInsecureTransport",
+          "Effect": "Deny",
+          "Principal": "*",
+          "Action": "s3:*",
+          "Resource": [
+            "arn:aws:s3:::\($bucket)",
+            "arn:aws:s3:::\($bucket)/*"
+          ],
+          "Condition": {
+            "Bool": {
+              "aws:SecureTransport": "false"
+            }
+          }
+        },
+        {
+          "Sid": "DenyOutdatedTLS",
+          "Effect": "Deny",
+          "Principal": "*",
+          "Action": "s3:*",
+          "Resource": [
+            "arn:aws:s3:::\($bucket)",
+            "arn:aws:s3:::\($bucket)/*"
+          ],
+          "Condition": {
+            "NumericLessThan": {
+              "s3:TlsVersion": "1.2"
+            }
+          }
+        },
+        {
+          "Sid": "AllowS3ServerAccessLogs",
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "logging.s3.amazonaws.com"
+          },
+          "Action": "s3:PutObject",
+          "Resource": "arn:aws:s3:::\($bucket)/*",
+          "Condition": {
+            "StringEquals": {
+              "aws:SourceAccount": $account
+            }
+          }
+        },
+        {
+          "Sid": "AllowCloudTrailLogs",
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "cloudtrail.amazonaws.com"
+          },
+          "Action": "s3:PutObject",
+          "Resource": "arn:aws:s3:::\($bucket)/*",
+          "Condition": {
+            "StringEquals": {
+              "s3:x-amz-acl": "bucket-owner-full-control",
+              "aws:SourceArn": "arn:aws:cloudtrail:*:\($account):trail/*"
+            }
+          }
+        },
+        {
+          "Sid": "AllowCloudTrailAclCheck",
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "cloudtrail.amazonaws.com"
+          },
+          "Action": "s3:GetBucketAcl",
+          "Resource": "arn:aws:s3:::\($bucket)",
+          "Condition": {
+            "StringEquals": {
+              "aws:SourceArn": "arn:aws:cloudtrail:*:\($account):trail/*"
+            }
+          }
+        },
+        {
+          "Sid": "AllowALBNLBWAFLogs",
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "delivery.logs.amazonaws.com"
+          },
+          "Action": "s3:PutObject",
+          "Resource": "arn:aws:s3:::\($bucket)/*",
+          "Condition": {
+            "StringEquals": {
+              "s3:x-amz-acl": "bucket-owner-full-control",
+              "aws:SourceAccount": $account
+            }
+          }
+        },
+        {
+          "Sid": "AllowALBNLBWAFAclCheck",
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "delivery.logs.amazonaws.com"
+          },
+          "Action": "s3:GetBucketAcl",
+          "Resource": "arn:aws:s3:::\($bucket)",
+          "Condition": {
+            "StringEquals": {
+              "aws:SourceAccount": $account
+            }
+          }
+        },
+        {
+          "Sid": "AllowELBLogs",
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "logdelivery.elasticloadbalancing.amazonaws.com"
+          },
+          "Action": "s3:PutObject",
+          "Resource": "arn:aws:s3:::\($bucket)/*"
+        }
+      ]
+    }')
 
   aws s3api put-bucket-policy \
     --bucket "$bucket" \
@@ -264,8 +379,25 @@ ensure_lifecycle() {
 
   echo "Applying lifecycle configuration to bucket '$bucket'..."
   local config
-  config=$(jq -n \
-    -f "$SCRIPT_DIR/templates/s3-lifecycle.json.template")
+  config=$(jq -n '{
+    "Rules": [
+      {
+        "ID": "1",
+        "Status": "Enabled",
+        "Filter": {},
+        "Transitions": [
+          {"Days": 30, "StorageClass": "STANDARD_IA"},
+          {"Days": 90, "StorageClass": "GLACIER_IR"}
+        ],
+        "Expiration": {"Days": 365},
+        "NoncurrentVersionTransitions": [
+          {"NoncurrentDays": 30, "StorageClass": "GLACIER_IR"}
+        ],
+        "NoncurrentVersionExpiration": {"NoncurrentDays": 365},
+        "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7}
+      }
+    ]
+  }')
 
   aws s3api put-bucket-lifecycle-configuration \
     --bucket "$bucket" \

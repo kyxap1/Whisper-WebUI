@@ -12,6 +12,11 @@ models/
 modules/yt_tmp.wav
 configs/default_parameters.yaml
 
+# terraform
+terraform/.envrc
+.terraform/
+*.tfvars
+
 # Nginx proxy
 nginx/.htpasswd
 nginx/certs/
