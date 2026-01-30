@@ -122,6 +122,12 @@ if [ "$AUTH_METHOD" = "cognito" ]; then
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Scheme $scheme;
         proxy_set_header X-Auth-Request-Redirect $request_uri;
+
+        # Buffer settings for large OAuth2 headers (JWT tokens)
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+        proxy_max_temp_file_size 0;
     }
 
     location = /oauth2/auth {
@@ -131,6 +137,12 @@ if [ "$AUTH_METHOD" = "cognito" ]; then
         proxy_set_header X-Scheme $scheme;
         proxy_set_header Content-Length "";
         proxy_pass_request_body off;
+
+        # Buffer settings for large OAuth2 headers (JWT tokens)
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+        proxy_max_temp_file_size 0;
     }'
     
     LOCATION_AUTH='auth_request /oauth2/auth;
