@@ -2,8 +2,9 @@
 #
 # Setup:
 #   1. Copy .env.example to .env and configure DOMAIN or IP
-#   2. Create .htpasswd: ./scripts/htpasswd-add.sh admin
-#   3. Run: docker compose up -d
+#   2. For basic auth: ./scripts/htpasswd-add.sh admin
+#   3. For Cognito: configure AWS_REGION, COGNITO_* variables
+#   4. Run: docker compose up -d
 
 services:
   nginx:
@@ -21,7 +22,33 @@ services:
       - whisper-webui
     restart: unless-stopped
 
-  # Override whisper-webui to not expose port directly
-  whisper-webui:
-    ports: !reset []
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.14.2
+    volumes:
+      - ./oauth2-proxy/oauth2-proxy.cfg:/etc/oauth2-proxy.cfg:ro
+    command: --config=/etc/oauth2-proxy.cfg
+    environment:
+      - OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180
+      - OAUTH2_PROXY_OIDC_ISSUER_URL=https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}
+      - OAUTH2_PROXY_CLIENT_ID=${COGNITO_CLIENT_ID}
+      - OAUTH2_PROXY_CLIENT_SECRET=${COGNITO_CLIENT_SECRET}
+      - OAUTH2_PROXY_COOKIE_SECRET=${OAUTH2_COOKIE_SECRET}
+      - OAUTH2_PROXY_REDIRECT_URL=https://${DOMAIN}/oauth2/callback
+      - OAUTH2_PROXY_EMAIL_DOMAINS=${OAUTH2_EMAIL_DOMAINS:-*}
+    depends_on:
+      - whisper-webui
     restart: unless-stopped
+    profiles:
+      - cognito
+
+  # Mock backend (only starts with 'mock' profile)
+  # Uses the same name to override the real one when the profile is active
+  whisper-webui:
+    image: hashicorp/http-echo
+    command: ["-listen=:7860", "-text='Auth works!'"]
+    build: !reset null
+    entrypoint: !reset []
+    volumes: !reset []
+    deploy: !reset null
+    profiles:
+      - mock
