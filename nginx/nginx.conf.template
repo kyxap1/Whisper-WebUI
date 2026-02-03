@@ -91,6 +91,9 @@ http {
         add_header X-XSS-Protection "1; mode=block" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
+        # Large file uploads
+        client_max_body_size 1G;
+
         # Authentication (method set by AUTH_METHOD env var)
         ${AUTH_CONFIG}
 
@@ -118,9 +121,6 @@ http {
             # Buffering
             proxy_buffering off;
             proxy_request_buffering off;
-
-            # Large file uploads
-            client_max_body_size 0;
         }
     }
 }
