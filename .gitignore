@@ -17,6 +17,9 @@ terraform/.envrc
 .terraform/
 *.tfvars
 
+#terraform lambdas
+terraform/builds/
+
 # Nginx proxy
 nginx/.htpasswd
 nginx/certs/

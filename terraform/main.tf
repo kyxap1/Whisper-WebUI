@@ -167,11 +167,14 @@ module "cloudfront" {
     app_server = { # Identifying key for this origin
       domain_name = data.aws_instance.app.public_dns
       custom_origin_config = {
-        http_port              = 80
-        https_port             = 443
-        origin_protocol_policy = "match-viewer"
-        origin_ssl_protocols   = ["TLSv1.2"]
+        http_port                = 80
+        https_port               = 443
+        origin_protocol_policy   = "match-viewer"
+        origin_ssl_protocols     = ["TLSv1.2"]
+        origin_read_timeout      = 5
+        origin_keepalive_timeout = 5
       }
+      connection_attempts = 1
     }
 
     start_lambda = {
