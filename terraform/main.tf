@@ -30,7 +30,7 @@ terraform {
 
 module "cognito" {
   source  = "terraformita/cognito/aws"
-  version = "~> 1.1.0"
+  version = "~> 1.2.0"
 
   region      = var.aws_region
   stage_name  = "ignore"
