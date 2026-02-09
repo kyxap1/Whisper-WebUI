@@ -6,13 +6,13 @@ ARGS   ?=
 
 init:
 	./scripts/init_backend.sh
-	terraform init
+	terraform init $(ARGS)
 
 plan:
 	terraform plan -var-file=$(TFVARS) $(ARGS)
 
 apply:
-	terraform apply -var-file=$(TFVARS) $(ARGS)
+	terraform apply -auto-approve -var-file=$(TFVARS) $(ARGS)
 
 fmt:
 	terraform fmt -recursive

@@ -1,0 +1,21 @@
+function handler(event) {
+    var request = event.request;
+    var cookies = request.cookies;
+
+    // Check for session cookie
+    if (cookies['launcher_session']) {
+        return request;
+    }
+
+    // No cookie -> Redirect to Cognito
+    var response = {
+        statusCode: 302,
+        statusDescription: 'Found',
+        headers: {
+            'location': {
+                value: 'https://${cognito_domain}/oauth2/authorize?client_id=${client_id}&response_type=code&scope=openid+email&redirect_uri=${redirect_uri}'
+            }
+        }
+    };
+    return response;
+}
