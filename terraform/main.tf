@@ -210,6 +210,19 @@ module "cloudfront" {
 
   ordered_cache_behavior = [
     {
+      path_pattern           = "/.well-known/acme-challenge/*"
+      target_origin_id       = "app_server"
+      viewer_protocol_policy = "allow-all"
+
+      allowed_methods = ["GET", "HEAD", "OPTIONS"]
+      cached_methods  = ["GET", "HEAD"]
+      compress        = true
+      query_string    = false
+
+      cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+      origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
+    },
+    {
       path_pattern           = "/launcher"
       target_origin_id       = "start_lambda"
       viewer_protocol_policy = "redirect-to-https"

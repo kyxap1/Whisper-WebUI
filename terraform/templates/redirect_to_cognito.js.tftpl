@@ -2,6 +2,11 @@ function handler(event) {
     var request = event.request;
     var cookies = request.cookies;
 
+    // Allow ACME challenge requests to pass through
+    if (request.uri.startsWith('/.well-known/acme-challenge/')) {
+        return request;
+    }
+
     // Check for session cookie
     if (cookies['launcher_session']) {
         return request;
